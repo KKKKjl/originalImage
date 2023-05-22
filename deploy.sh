@@ -1,18 +1,10 @@
 #!/bin/bash
-systemctl stop original_image
-systemctl disable original_image
+project=original_image
+current_date=$(date +%y%m%d)
+tag="v${current_date}"
 
-mkdir -p /etc/original_image
+docker stop $project
+docker rm $project
 
-cp -f original_image /usr/local/bin/original_image
-cp -f etc/config.json /etc/original_image/config.json
-chmod +x /usr/local/bin/original_image
-
-ln -s $(pwd)/deploy/original_image.service /etc/systemd/system/original_image.service
-
-systemctl daemon-reload
-systemctl enable original_image
-systemctl start original_image
-
-echo "original_image service deployed!"
-systemctl status original_image
+docker build -t $project:$tag .
+docker run --name $project -dp 8000:8000 $project:$tag
