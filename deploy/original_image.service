@@ -1,0 +1,13 @@
+[Unit]
+Description=original_image
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/original_service -c /etc/original_service/config.json
+WorkingDirectory=/usr/local/bin
+User=root
+Restart=always
+
+[Install]
+WantedBy=default.target
