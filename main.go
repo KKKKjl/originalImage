@@ -38,6 +38,11 @@ var (
 	}
 )
 
+type WorkInfo struct {
+	url  string
+	user User
+}
+
 func main() {
 	if err := opt.MustInitConfig(); err != nil {
 		log.Fatal(err)
@@ -63,7 +68,7 @@ func main() {
 		closed  = make(chan struct{})
 		sig     = make(chan os.Signal, 1)
 		errCh   = make(chan error, 1)
-		workers = make(chan string, defaultWorkersNum)
+		workers = make(chan WorkInfo, defaultWorkersNum)
 	)
 
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +122,10 @@ func main() {
 		for _, id := range res.Pic_ids {
 			url := "https://lz.sinaimg.cn/oslarge/" + id + ".jpg"
 			select {
-			case workers <- url:
+			case workers <- WorkInfo{
+				url:  url,
+				user: res.User,
+			}:
 			default:
 				log.Printf("enqueue timeout, url %s", url)
 			}
@@ -155,23 +163,23 @@ func main() {
 	close(closed)
 }
 
-func consume(stop <-chan struct{}, workers <-chan string, s3 *S3Client) {
+func consume(stop <-chan struct{}, workers <-chan WorkInfo, s3 *S3Client) {
 	for {
 		select {
 		case <-stop:
 			return
-		case url := <-workers:
+		case worker := <-workers:
 			Go(func() {
-				reader, size, err := fetchOriginalImage(client, url, opt.Cfg.GetCookie())
+				reader, size, err := fetchOriginalImage(client, worker.url, opt.Cfg.GetCookie())
 				if err != nil {
-					log.Printf("fetch original image %s error: %v", url, err)
+					log.Printf("fetch original image %s error: %v", worker.url, err)
 					return
 				}
 				defer reader.Close()
 
 				var (
 					objectName string
-					parts      = strings.Split(url, "/")
+					parts      = strings.Split(worker.url, "/")
 				)
 
 				if len(parts) > 0 {
@@ -183,6 +191,11 @@ func consume(stop <-chan struct{}, workers <-chan string, s3 *S3Client) {
 
 				if _, err = s3.PutObject(objectName, reader, size, &minio.PutObjectOptions{
 					ContentType: "image/jpeg",
+					UserMetadata: map[string]string{
+						"home-page":   "https://weibo.com" + worker.user.ProfileUrl,
+						"screen-name": worker.user.ScreeName,
+						"uid":         worker.user.IdStr,
+					},
 				}); err != nil {
 					log.Printf("put object %s error: %v", objectName, err)
 					return
@@ -246,10 +259,17 @@ type (
 		Cookie string `json:"cookie"`
 	}
 
+	User struct {
+		IdStr      string `json:"idstr"`
+		ProfileUrl string `json:"profile_url"`
+		ScreeName  string `json:"screen_name"`
+	}
+
 	WeiboResponse struct {
 		Pic_num   int                    `json:"pic_num"`
 		Pic_ids   []string               `json:"pic_ids"`
 		Pic_infos map[string]interface{} `json:"pic_infos"`
+		User      User                   `json:"user"`
 	}
 
 	BaseResponse struct {
@@ -357,3 +377,34 @@ func generateRandomFileName() (string, error) {
 	fileName := hex.EncodeToString(randomBytes)
 	return fileName, nil
 }
+
+// func getUid(picId string) (uid int) {
+// 	var carry = 16
+// 	if len(picId) < 8 {
+// 		return 0
+// 	}
+
+// 	picId = picId[:8]
+// 	if picId[0] == '0' && picId[1] == '0' {
+// 		carry = 62
+// 	}
+
+// 	for _, b := range picId {
+// 		uid = uid*carry + idx(b)
+// 	}
+
+// 	return uid
+// }
+
+// func idx(c rune) int {
+// 	i := int(c)
+// 	if i >= 48 && i <= 57 {
+// 		return i - 48
+// 	}
+
+// 	if c >= 97 && c <= 122 {
+// 		return i - 97 + 10
+// 	}
+
+// 	return i - 65 + 36
+// }
