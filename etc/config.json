@@ -4,5 +4,6 @@
     "secret_access_key": "",
     "cookie": "",
     "addr": "0.0.0.0:8080",
-    "bucket_name": "chy"
+    "bucket_name": "chy",
+    "secure": false
 }

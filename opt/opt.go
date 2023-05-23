@@ -22,6 +22,7 @@ type Config struct {
 	Cookie          string       `mapstructure:"cookie"`
 	Addr            string       `mapstructure:"addr"`
 	BucketName      string       `mapstructure:"bucket_name"`
+	Secure          bool         `mapstructure:"secure"`
 }
 
 func (c *Config) GetCookie() string {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,11 @@ const (
 var (
 	client = &http.Client{
 		Timeout: defaultTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
 	}
 )
 
@@ -292,7 +298,7 @@ type S3Client struct {
 func NewS3Client(endpoint, accessKeyID, secretAccessKey, bucket string, timeout time.Duration) (*S3Client, error) {
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: true,
+		Secure: opt.Cfg.Secure,
 	})
 	if err != nil {
 		return nil, err
