@@ -102,12 +102,14 @@ func main() {
 			_ = opt.Cfg.UpdateCookie(args.Cookie)
 		}
 
+		target := "https://weibo.com/ajax/statuses/show?id=" + parts[len(parts)-1]
 		res, err := fetchOriginalUrls(
 			client,
-			"https://weibo.com/ajax/statuses/show?id="+parts[len(parts)-1],
+			target,
 			opt.Cfg.GetCookie(),
 		)
 		if err != nil {
+			log.Printf("fetch original urls [%s] err: %v", target, err)
 			resp.RespErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -117,8 +119,7 @@ func main() {
 			select {
 			case workers <- url:
 			default:
-				resp.RespErr(w, http.StatusInternalServerError, "enqueue timeout")
-				return
+				log.Printf("enqueue timeout, url %s", url)
 			}
 		}
 
@@ -199,13 +200,13 @@ func fetchOriginalUrls(client *http.Client, url string, cookie string) (*WeiboRe
 		"user-agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("make request to %s err: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	var weiboResp WeiboResponse
 	if err := json.NewDecoder(resp.Body).Decode(&weiboResp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decode weibo resp err: %w", err)
 	}
 
 	return &weiboResp, nil
@@ -220,7 +221,7 @@ func fetchOriginalImage(client *http.Client, url string, cookie string) (io.Read
 		"user-agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
 	})
 	if err != nil {
-		return nil, -1, err
+		return nil, -1, fmt.Errorf("make request to %s err: %w", url, err)
 	}
 
 	return resp.Body, resp.ContentLength, nil
